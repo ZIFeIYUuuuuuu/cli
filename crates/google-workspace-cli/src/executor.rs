@@ -714,6 +714,10 @@ fn render_path_template(
             let encoded = if is_plus {
                 let validated = crate::validate::validate_resource_name(&val_str)?;
                 crate::validate::encode_path_preserving_slashes(validated)
+            } else if key == "scriptId" {
+                // Apps Script's :run endpoint rejects percent-encoded RFC 3986
+                // unreserved characters (`-`, `_`, `.`, `~`) in script IDs.
+                encode_script_id_path_segment(&val_str)
             } else {
                 crate::validate::encode_path_segment(&val_str)
             };
@@ -727,6 +731,14 @@ fn render_path_template(
 
     rendered.push_str(&path_template[cursor..]);
     Ok(rendered)
+}
+
+fn encode_script_id_path_segment(value: &str) -> String {
+    crate::validate::encode_path_segment(value)
+        .replace("%2D", "-")
+        .replace("%5F", "_")
+        .replace("%2E", ".")
+        .replace("%7E", "~")
 }
 
 /// Attempts to extract a GCP console enable URL from a Google API `accessNotConfigured`
@@ -1879,6 +1891,31 @@ mod tests {
         assert_eq!(
             url,
             "https://api.example.com/v1/literal%2D%7Bchild%7D%2Dvalue/ok"
+        );
+    }
+
+    #[test]
+    fn test_build_url_preserves_unreserved_script_id_characters() {
+        let doc = RestDescription {
+            base_url: Some("https://script.googleapis.com/".to_string()),
+            ..Default::default()
+        };
+        let method = RestMethod {
+            path: "v1/scripts/{scriptId}:run".to_string(),
+            flat_path: Some("v1/scripts/{scriptId}:run".to_string()),
+            ..Default::default()
+        };
+        let mut params = Map::new();
+        params.insert(
+            "scriptId".to_string(),
+            json!("1-ukYIb6_NbryM5UJXBwAMeY5GKtSBA05csXty3iY7DhO-P"),
+        );
+
+        let (url, _) = build_url(&doc, &method, &params, false).unwrap();
+
+        assert_eq!(
+            url,
+            "https://script.googleapis.com/v1/scripts/1-ukYIb6_NbryM5UJXBwAMeY5GKtSBA05csXty3iY7DhO-P:run"
         );
     }
 
