@@ -1431,6 +1431,10 @@ fn build_send_metadata(thread_id: Option<&str>, draft: bool) -> Option<String> {
     }
 }
 
+fn draft_send_tip() -> &'static str {
+    "gws gmail users drafts send --params '{\"userId\":\"me\"}' --json '{\"id\":\"<draft-id>\"}'"
+}
+
 pub(super) async fn dispatch_raw_email(
     doc: &crate::discovery::RestDescription,
     matches: &ArgMatches,
@@ -1488,7 +1492,7 @@ pub(super) async fn dispatch_raw_email(
 
     if draft && !matches.get_flag("dry-run") {
         eprintln!("Tip: copy the draft \"id\" from the response above, then send with:");
-        eprintln!("  gws gmail users.drafts.send --body '{{\"id\":\"<draft-id>\"}}'");
+        eprintln!("  {}", draft_send_tip());
     }
 
     Ok(())
@@ -2358,6 +2362,14 @@ mod tests {
         let parsed: Value = serde_json::from_str(&metadata).unwrap();
         assert!(parsed["message"].is_object());
         assert!(parsed["message"].get("threadId").is_none());
+    }
+
+    #[test]
+    fn test_draft_send_tip_uses_valid_discovery_command_syntax() {
+        assert_eq!(
+            draft_send_tip(),
+            "gws gmail users drafts send --params '{\"userId\":\"me\"}' --json '{\"id\":\"<draft-id>\"}'"
+        );
     }
 
     #[test]
