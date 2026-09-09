@@ -262,7 +262,9 @@ fn parse_message_headers(headers: &[Value]) -> ParsedMessageHeaders {
             "From" => parsed.from = value.to_string(),
             "Reply-To" => append_address_list_header_value(&mut parsed.reply_to, value),
             "To" => append_address_list_header_value(&mut parsed.to, value),
-            "Cc" => append_address_list_header_value(&mut parsed.cc, value),
+            _ if name.eq_ignore_ascii_case("Cc") => {
+                append_address_list_header_value(&mut parsed.cc, value)
+            }
             "Subject" => parsed.subject = value.to_string(),
             "Date" => parsed.date = value.to_string(),
             "Message-ID" | "Message-Id" => parsed.message_id = value.to_string(),
@@ -2032,6 +2034,18 @@ mod tests {
         let raw = mb.write_to_string().unwrap();
         let to = extract_header(&raw, "To").unwrap();
         assert!(to.contains("alice@example.com"));
+    }
+
+    #[test]
+    fn test_parse_message_headers_preserves_cc_regardless_of_header_case() {
+        let headers = vec![
+            json!({"name": "CC", "value": "alice@example.com"}),
+            json!({"name": "cc", "value": "bob@example.com"}),
+        ];
+
+        let parsed = parse_message_headers(&headers);
+
+        assert_eq!(parsed.cc, "alice@example.com, bob@example.com");
     }
 
     #[test]
